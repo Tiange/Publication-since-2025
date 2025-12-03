@@ -1,0 +1,129 @@
+---
+title: "MANOVA for Trabecular Bone MicroCT Data Analysis"
+author: "TF"
+date: "2025-10-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# --- 1. Install and load necessary packages ---
+
+'dplyr' is used for data manipulation. 'rstatix' provides a user-friendly interface for statistical tests. 'ggpubr' is great for data visualization.
+
+## Check if packages are installed, if not, install them
+
+```{r}
+if(!require(dplyr)) install.packages("dplyr")
+if(!require(rstatix)) install.packages("rstatix")
+if(!require(ggpubr)) install.packages("ggpubr")
+```
+
+## Load the packages
+
+```{r}
+library(dplyr)
+library(rstatix)
+library(ggpubr)
+```
+
+# --- 2. Load the data ---
+
+Each row is a sample (e.g., one mouse tibia). 'Group' column indicates Control (Con) or Experiment (Exp). Other columns are your trabecular bone parameters.
+
+## mG male 12-week NCD data - tibia trabecular bone
+
+```{r}
+my_data <- data.frame(
+  Group = rep(c("Con", "Exp"), times = c(6, 4)),
+  Tb.BV.TV = c(32.73,36.53,27.29,37.2,25.91,37.76,29.69,31.07,26.48,25.84),
+  Tb.BMD = c(264.5002,306.0884,222.5471,296.9682,213.518,303.2612,241.6084,251.823,217.3485,215.3421),
+  Tb.N = c(6.2373,6.4942,5.8504,6.4126,6.2577,7.0179,5.8843,5.9997,5.9213,6.2587),
+  Tb.Th = c(0.0628,0.0641,0.0583,0.0673,0.0548,0.0629,0.0647,0.0603,0.0585,0.0552)
+  # Tb.Sp = c(0.1342,0.1282,0.1542,0.1321,0.1411,0.1188,0.1448,0.1456,0.1525,0.1417)
+)
+```
+
+## mG male 12-week NCD data - tibia cortical bone
+
+```{r}
+my_data <- data.frame(
+  Group = rep(c("Con", "Exp"), times = c(6, 4)),
+  Ct.BA.TA = c(57.91,57.84,54.48,57.31,55.41,57.18,54.12,54.36,55.84,54.49),
+  Ct.BMD = c(702.6365,711.1183,664.5139,686.3113,665.6083,668.8004,653.1135,652.1104,678.8326,636.0587),
+  Ct.Th = c(0.199,0.219,0.186,0.223,0.181,0.206,0.203,0.201,0.183,0.198)
+)
+```
+
+## mG female OVX data - tibia trabecular bone
+
+```{r}
+my_data <- data.frame(
+  Group = rep(c("Con", "Exp"), times = c(5, 5)),
+  Tb.BV.TV = c(14.53, 14.16, 16.2, 17.45, 16.43,14.13,14.94,13.77,10.39,11.03), 
+  Tb.N = c(4.14,4.67,4.48,4.83,4.22,3.99,3.85,3.71,3.29,3.41),
+  Tb.BMD = c(174.391323,180.70556,180.098287,184.629318,174.102078,174.491972,174.125246,171.085229,150.253229,153.522325)
+)
+```
+
+## mG female OVX data - tibia cortical bone
+
+```{r}
+my_data <- data.frame(
+  Group = rep(c("Con", "Exp"), times = c(5, 5)),
+  Ct.BA.TA = c(46.33,43.25,46.7,46.29,46.87,40.77,42.12,38.95,28.97,32.09), 
+  Ct.BMD = c(1805.48,1759.67,1791.86,1837.26,1856.18,1776.8,1782.42,1733.28,1624.32,1641.45),
+  Ct.Th = c(0.2,0.18,0.21,0.22,0.22,0.18,0.19,0.18,0.14,0.15)
+)
+```
+
+# --- 3. Data Transformation (Optional but Recommended) ---
+
+Standardizing the data (scaling) can improve the interpretation of some post-hoc analyses and diagnostic plots. It centers the data around 0 with a standard deviation of 1.
+
+```{r}
+scaled_data <- my_data %>%
+  mutate_at(vars(Tb.BV.TV,Tb.BMD,Tb.N,Tb.Th,Tb.Sp), scale)
+  # mutate_at(vars(Tb.BV.TV, Tb.N, Tb.BMD), scale)
+  # mutate_at(vars(Ct.BA.TA, Ct.BMD, Ct.Th), scale)
+```
+
+# --- 4. Perform MANOVA ---
+
+We want to see if the 'Group' has a significant effect on the combination of all trabecular bone parameters.
+
+The formula `cbind(BV.TV, Tb.N, Tb.Th, SMI) ~ Group` means we are testing the effect of 'Group' on the set of variables.
+
+```{r}
+manova_result <- manova(cbind(Tb.BV.TV,Tb.BMD,Tb.N,Tb.Th,Tb.Sp) ~ Group, data = my_data)
+# manova_result <- manova(cbind(Tb.BV.TV, Tb.N, Tb.BMD) ~ Group, data = my_data)
+# manova_result <- manova(cbind(Ct.BA.TA, Ct.BMD, Ct.Th) ~ Group, data = my_data)
+```
+
+Print the summary of the MANOVA results We look at the Pr(\>F) value (p-value). If it's \< 0.05, it indicates a statistically significant effect of the 'Group' on the trabecular bone parameters as a whole.
+
+```{r}
+summary(manova_result, test = "Pillai") # Pillai's trace is a robust test statistic
+```
+
+# --- 5. Post-hoc Analysis (if MANOVA is significant) ---
+
+If the overall MANOVA result is significant, investigate which specific parameters are different between the groups. Perform separate t-tests or ANOVAs for each parameter. Adjust p-values for multiple comparisons.
+
+Using the 'rstatix' package for easy post-hoc tests with p-value adjustment
+
+```{r}
+post_hoc_tests <- my_data %>%
+  gather(key = "Parameter", value = "Value", -Group) %>%
+  group_by(Parameter) %>%
+  t_test(Value ~ Group) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+
+# Print the results of the post-hoc tests
+print(post_hoc_tests)
+```
+
+# 
